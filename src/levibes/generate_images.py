@@ -2,6 +2,7 @@ from PIL import Image, ImageDraw, ImageFont
 from yaspin import yaspin
 import os
 import random
+import asyncio
 from .config import (
     DEFAULT_IMAGE_SIZE,
     FONT_NAMES,
@@ -13,26 +14,20 @@ from .config import (
 )
 
 
-@yaspin(text="Generating images...", color="cyan")
-def generate_images(captions, path_to_images, output_dir):
-    image_paths = [
-        os.path.join(path_to_images, file)
-        for file in os.listdir(path_to_images)
-        if file.endswith(SUPPORTED_IMAGE_FORMATS)
-    ]
-    random.shuffle(image_paths)
+async def process_single_image(image_path, caption_text, output_dir):
+    """Process a single image by adding a caption and saving it to the output directory.
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    Args:
+        image_path (str): Path to the input image
+        caption_text (str): Caption text to add to the image
+        output_dir (str): Directory to save the output image
 
-    output_paths = []
+    Returns:
+        str: Path to the saved output image
+    """
 
-    for i, image_path in enumerate(image_paths):
-        if i >= len(captions):
-            break
-
-        caption_text = captions[i]
-
+    # Run the image processing in a separate thread to avoid blocking
+    def _process_image():
         with Image.open(image_path) as img:
             padding_scaling_factor = PADDING_SCALING_FACTOR
             line_spacing_ratio = LINE_SPACING_RATIO
@@ -145,6 +140,39 @@ def generate_images(captions, path_to_images, output_dir):
             filename = os.path.basename(image_path)
             output_path = os.path.join(output_dir, f"captioned_{filename}")
             new_img.save(output_path)
-            output_paths.append(output_path)
+            return output_path
 
+    # Run the CPU-intensive image processing in a thread pool
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _process_image)
+
+
+@yaspin(text="Generating images...", color="cyan")
+def generate_images(captions, path_to_images, output_dir):
+    """Wrapper function to maintain the original synchronous interface."""
+    return asyncio.run(generate_images_async(captions, path_to_images, output_dir))
+
+
+async def generate_images_async(captions, path_to_images, output_dir):
+    """Async version of generate_images that processes images concurrently."""
+    image_paths = [
+        os.path.join(path_to_images, file)
+        for file in os.listdir(path_to_images)
+        if file.endswith(SUPPORTED_IMAGE_FORMATS)
+    ]
+    random.shuffle(image_paths)
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    tasks = []
+    for i, image_path in enumerate(image_paths):
+        if i >= len(captions):
+            break
+
+        caption_text = captions[i]
+        task = process_single_image(image_path, caption_text, output_dir)
+        tasks.append(task)
+
+    output_paths = await asyncio.gather(*tasks)
     return output_paths

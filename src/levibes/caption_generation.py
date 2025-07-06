@@ -9,51 +9,97 @@ class Captions(BaseModel):
     captions: list[str]
 
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = None
 
 
-@yaspin(text=f"Generating captions with {OPENAI_MODEL}...", color="cyan")
-def generate_captions(num_images):
-    openai_response = client.responses.parse(
-        model=OPENAI_MODEL,
-        temperature=OPENAI_TEMPERATURE,
-        input=[{"role": "user", "content": generate_prompt(num_images)}],
-        text_format=Captions,
-    )
+def read_captions_from_file(file_path, num_images):
+    """
+    Read captions from a text file.
 
-    if openai_response.output_parsed is None:
-        raise ValueError("No captions generated")
+    Args:
+        file_path (str): Path to the text file containing captions
+        num_images (int): Number of captions needed
 
-    return openai_response.output_parsed.captions
+    Returns:
+        list: List of captions read from the file
+
+    Raises:
+        FileNotFoundError: If the file doesn't exist
+        ValueError: If the file doesn't contain enough captions
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Caption file not found: {file_path}")
+
+    with open(file_path, "r", encoding="utf-8") as file:
+        captions = [line.strip() for line in file if line.strip()]
+
+    if len(captions) < num_images:
+        raise ValueError(
+            f"Not enough captions in file. Found {len(captions)}, need {num_images}"
+        )
+
+    return captions[:num_images]
 
 
-@yaspin(text=f"Generating TikTok captions with {OPENAI_MODEL}...", color="cyan")
-def generate_tiktok_captions(num_captions=1):
-    openai_response = client.responses.parse(
-        model=OPENAI_MODEL,
-        temperature=OPENAI_TEMPERATURE,
-        input=[{"role": "user", "content": generate_tiktok_prompt(num_captions)}],
-    )
+def generate_captions(num_images, model=OPENAI_MODEL, language='english'):
+    global client
+    if client is None:
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    if openai_response.output_text is None or openai_response.output_text == "":
-        raise ValueError("No TikTok captions generated")
+    language_text = f" in {language}" if language.lower() != 'english' else ""
+    with yaspin(text=f"Generating captions with {model}{language_text}...", color="cyan"):
+        openai_response = client.responses.parse(
+            model=model,
+            temperature=OPENAI_TEMPERATURE,
+            input=[{"role": "user", "content": generate_prompt(num_images, language)}],
+            text_format=Captions,
+        )
 
-    return openai_response.output_text
+        if openai_response.output_parsed is None:
+            raise ValueError("No captions generated")
+
+        return openai_response.output_parsed.captions
 
 
-def generate_prompt(num_images):
-    return f"""Generate {num_images} motivational phrases in all lowercase, under 13 words each. Match this style exactly:
+def generate_tiktok_captions(num_captions=1, model=OPENAI_MODEL, language='english'):
+    global client
+    if client is None:
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    language_text = f" in {language}" if language.lower() != 'english' else ""
+    with yaspin(text=f"Generating TikTok captions with {model}{language_text}...", color="cyan"):
+        openai_response = client.responses.parse(
+            model=model,
+            temperature=OPENAI_TEMPERATURE,
+            input=[{"role": "user", "content": generate_tiktok_prompt(num_captions, language)}],
+        )
+
+        if openai_response.output_text is None or openai_response.output_text == "":
+            raise ValueError("No TikTok captions generated")
+
+        return openai_response.output_text
+
+
+def generate_prompt(num_images, language='english'):
+    base_prompt = f"""Generate {num_images} motivational phrases in all lowercase, under 13 words each. These will be accompanied by a happy picture of LeBron James. Match this style exactly:
 
 if you went back in time to erase all of your mistakes you would erase yourself
 the strongest steel is forged in the hottest fire
 all our dreams can come true if we have the courage to pursue them
 shoot for the moon. even if you miss, you'll land among the stars
 
-Requirements: deep, philosophical, resonate with young people, minimal use of "you/your", no em dashes or ellipses."""
+Requirements: deep, philosophical, resonate with young people, minimal use of "you/your", no em dashes or ellipses. You may occasionally use formats like "when you finally realize x" but don't overuse this pattern."""
+    
+    if language.lower() == 'english':
+        return base_prompt
+    else:
+        return f"""{base_prompt}
+
+IMPORTANT: Generate all captions in {language}. Make sure the motivational phrases are culturally appropriate and resonate with young people who speak {language}. Maintain the same style and format but translate the sentiment and meaning into {language}."""
 
 
-def generate_tiktok_prompt(num_captions):
-    return f"""Generate {num_captions} TikTok caption(s) with an inspirational quote and hashtags. Format the response as a inspirational quote in all lowercase (similar to examples below) directly followed by up to 5 hashtags relating to inspiration and LeBron James. DO NOT RELATE THE QUOTES TO LEBRON JAMES.
+def generate_tiktok_prompt(num_captions, language='english'):
+    base_prompt = f"""Generate {num_captions} TikTok caption(s) with an inspirational quote and hashtags. Format the response as a inspirational quote in all lowercase (similar to examples below) directly followed by up to 5 hashtags relating to inspiration and LeBron James. DO NOT RELATE THE QUOTES TO LEBRON JAMES.
 
 Example inspirational quotes (all lowercase):
 - if you went back in time to erase all of your mistakes you would erase yourself
@@ -62,3 +108,10 @@ Example inspirational quotes (all lowercase):
 - shoot for the moon. even if you miss, you'll land among the stars
 
 Keep the quote 12 words or less and make it resonate with a young audience interested in motivation and personal growth."""
+    
+    if language.lower() == 'english':
+        return base_prompt
+    else:
+        return f"""{base_prompt}
+
+IMPORTANT: Generate the inspirational quote in {language}. Make sure the quote is culturally appropriate and resonates with young people who speak {language}. The hashtags should be in English as they're for international reach, but the quote itself should be in {language}."""
