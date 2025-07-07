@@ -1,8 +1,11 @@
-from PIL import Image, ImageDraw, ImageFont
-from yaspin import yaspin
+"""
+Image generation with captions
+"""
+
 import os
 import random
 import asyncio
+from PIL import Image, ImageDraw, ImageFont
 from .config import (
     DEFAULT_IMAGE_SIZE,
     FONT_NAMES,
@@ -12,6 +15,7 @@ from .config import (
     FONT_SIZE_RATIO,
     SUPPORTED_IMAGE_FORMATS,
 )
+from .utils.logger import logger
 
 
 async def process_single_image(image_path, caption_text, output_dir):
@@ -93,9 +97,7 @@ async def process_single_image(image_path, caption_text, output_dir):
                 break
 
             if not wrapped_text:
-                print(
-                    f"Warning: Could not fit caption on image {os.path.basename(image_path)}. Caption may be too long."
-                )
+                logger.warning(f"Could not fit caption on image {os.path.basename(image_path)}. Caption may be too long.")
                 # fallback to a tiny font size if it couldn't fit
                 for name in font_names:
                     try:
@@ -147,10 +149,12 @@ async def process_single_image(image_path, caption_text, output_dir):
     return await loop.run_in_executor(None, _process_image)
 
 
-@yaspin(text="Generating images...", color="cyan")
 def generate_images(captions, path_to_images, output_dir):
-    """Wrapper function to maintain the original synchronous interface."""
-    return asyncio.run(generate_images_async(captions, path_to_images, output_dir))
+    """Generate images with captions"""
+    logger.progress("Generating images")
+    result = asyncio.run(generate_images_async(captions, path_to_images, output_dir))
+    logger.success(f"Generated {len(result)} images")
+    return result
 
 
 async def generate_images_async(captions, path_to_images, output_dir):

@@ -1,12 +1,21 @@
-from yaspin import yaspin
-from openai import OpenAI
+"""
+Caption generation using OpenAI API
+"""
+
 import os
+from openai import OpenAI
 from pydantic import BaseModel
 from .config import OPENAI_MODEL, OPENAI_TEMPERATURE
+from .utils.logger import logger
 
 
 class Captions(BaseModel):
     captions: list[str]
+
+
+class TikTokCaption(BaseModel):
+    title: str
+    hashtags: list[str]
 
 
 client = None
@@ -42,12 +51,15 @@ def read_captions_from_file(file_path, num_images):
 
 
 def generate_captions(num_images, model=OPENAI_MODEL, language='english'):
+    """Generate captions using OpenAI API"""
     global client
     if client is None:
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     language_text = f" in {language}" if language.lower() != 'english' else ""
-    with yaspin(text=f"Generating captions with {model}{language_text}...", color="cyan"):
+    logger.progress(f"Generating captions with {model}{language_text}")
+    
+    try:
         openai_response = client.responses.parse(
             model=model,
             temperature=OPENAI_TEMPERATURE,
@@ -58,29 +70,42 @@ def generate_captions(num_images, model=OPENAI_MODEL, language='english'):
         if openai_response.output_parsed is None:
             raise ValueError("No captions generated")
 
+        logger.success(f"Generated {len(openai_response.output_parsed.captions)} captions")
         return openai_response.output_parsed.captions
+    except Exception as e:
+        logger.error(f"Caption generation failed: {e}")
+        raise
 
 
 def generate_tiktok_captions(num_captions=1, model=OPENAI_MODEL, language='english'):
+    """Generate TikTok captions using OpenAI API"""
     global client
     if client is None:
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     language_text = f" in {language}" if language.lower() != 'english' else ""
-    with yaspin(text=f"Generating TikTok captions with {model}{language_text}...", color="cyan"):
+    logger.progress(f"Generating TikTok captions with {model}{language_text}")
+    
+    try:
         openai_response = client.responses.parse(
             model=model,
             temperature=OPENAI_TEMPERATURE,
             input=[{"role": "user", "content": generate_tiktok_prompt(num_captions, language)}],
+            text_format=TikTokCaption,
         )
 
-        if openai_response.output_text is None or openai_response.output_text == "":
+        if openai_response.output_parsed is None:
             raise ValueError("No TikTok captions generated")
 
-        return openai_response.output_text
+        logger.success("Generated TikTok caption")
+        return openai_response.output_parsed
+    except Exception as e:
+        logger.error(f"TikTok caption generation failed: {e}")
+        raise
 
 
 def generate_prompt(num_images, language='english'):
+    """Generate prompt for caption generation"""
     base_prompt = f"""Generate {num_images} motivational phrases in all lowercase, under 13 words each. These will be accompanied by a happy picture of LeBron James. Match this style exactly:
 
 if you went back in time to erase all of your mistakes you would erase yourself
@@ -99,7 +124,12 @@ IMPORTANT: Generate all captions in {language}. Make sure the motivational phras
 
 
 def generate_tiktok_prompt(num_captions, language='english'):
-    base_prompt = f"""Generate {num_captions} TikTok caption(s) with an inspirational quote and hashtags. Format the response as a inspirational quote in all lowercase (similar to examples below) directly followed by up to 5 hashtags relating to inspiration and LeBron James. DO NOT RELATE THE QUOTES TO LEBRON JAMES.
+    """Generate prompt for TikTok caption generation"""
+    base_prompt = f"""Generate {num_captions} TikTok caption(s) with separate title and hashtags. 
+
+Return the response as structured data with:
+- "title": An inspirational quote in all lowercase (similar to examples below)
+- "hashtags": A list of 3-5 hashtags related to inspiration and motivation
 
 Example inspirational quotes (all lowercase):
 - if you went back in time to erase all of your mistakes you would erase yourself
@@ -107,7 +137,7 @@ Example inspirational quotes (all lowercase):
 - all our dreams can come true if we have the courage to pursue them
 - shoot for the moon. even if you miss, you'll land among the stars
 
-Keep the quote 12 words or less and make it resonate with a young audience interested in motivation and personal growth."""
+Keep the quote 12 words or less and make it resonate with a young audience interested in motivation and personal growth. DO NOT RELATE THE QUOTES TO LEBRON JAMES."""
     
     if language.lower() == 'english':
         return base_prompt

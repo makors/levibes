@@ -27,7 +27,7 @@ FONT_SIZE_RATIO = 20  # image width divided by this value
 
 # OpenAI settings
 OPENAI_MODEL = "gpt-4.1"
-OPENAI_TEMPERATURE = 0.9
+OPENAI_TEMPERATURE = 0.8
 
 
 # Supported image formats
@@ -48,7 +48,7 @@ def load_cli_args():
 Examples:
   python main.py --caption-source ai --num-images 10 --images-dir ./images --output-dir ./output
   python main.py -s file -n 5 -i ./images -o ./output -c ./captions.txt
-  python main.py -s ai -n 3  # Will prompt for missing inputs
+  python main.py -s ai -n 3 --upload-tiktok  # Generate and upload to TikTok
         """
     )
     
@@ -101,6 +101,18 @@ Examples:
         '-l', '--language',
         default='english',
         help='Language for caption generation (default: english)'
+    )
+    
+    parser.add_argument(
+        '--upload-tiktok',
+        action='store_true',
+        help='Upload images to TikTok as drafts after generation'
+    )
+    
+    parser.add_argument(
+        '--outro-image',
+        default='outro.png',
+        help='Path to outro image for TikTok uploads (default: outro.png)'
     )
     
     return parser.parse_args()

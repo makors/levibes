@@ -8,14 +8,16 @@ from prompt_toolkit import prompt
 from prompt_toolkit.validation import Validator
 from prompt_toolkit.shortcuts import confirm
 from .config import DEFAULT_NUM_IMAGES, DEFAULT_IMAGES_DIR, DEFAULT_OUTPUT_DIR
+from .utils.logger import logger
 
 
 def display_welcome():
-    """Display welcome message with ASCII art."""
+    """Display welcome message with simple ASCII art."""
     ascii_art = text2art("LeVibes", font="bolger")
+    # Keep minimal gradient as requested
     gradient_art = gratient.blue(ascii_art)
     print(gradient_art)
-    print(gratient.blue("\t   " + "Time to spread some positivity! 💫"))
+    logger.info("Time to spread some positivity!")
 
 
 def ask_caption_source(caption_source=None):
@@ -29,7 +31,7 @@ def ask_caption_source(caption_source=None):
         str: 'ai' for AI-generated captions, 'file' for text file captions
     """
     if caption_source:
-        print(f"Using caption source: {caption_source}")
+        logger.info(f"Using caption source: {caption_source}")
         return caption_source
     
     print("\nHow would you like to generate your captions?")
@@ -60,7 +62,7 @@ def get_caption_file_path(num_images, caption_file=None):
         str: Path to the caption file
     """
     if caption_file:
-        print(f"Using caption file: {caption_file}")
+        logger.info(f"Using caption file: {caption_file}")
         return caption_file
 
     def is_valid_caption_file(file_path):
@@ -113,7 +115,7 @@ def get_user_inputs(num_images=None, path_to_images=None, output_dir=None):
             )
         )
     else:
-        print(f"Number of images: {num_images}")
+        logger.info(f"Number of images: {num_images}")
 
     # Get path to images
     if path_to_images is None:
@@ -146,7 +148,7 @@ def get_user_inputs(num_images=None, path_to_images=None, output_dir=None):
             validate_while_typing=False,
         )
     else:
-        print(f"Images directory: {path_to_images}")
+        logger.info(f"Images directory: {path_to_images}")
 
     # Get output directory
     if output_dir is None:
@@ -155,7 +157,7 @@ def get_user_inputs(num_images=None, path_to_images=None, output_dir=None):
             default=DEFAULT_OUTPUT_DIR,
         )
     else:
-        print(f"Output directory: {output_dir}")
+        logger.info(f"Output directory: {output_dir}")
 
     return num_images, path_to_images, output_dir
 
@@ -171,7 +173,7 @@ def confirm_captions(captions, no_confirm=False):
     Returns:
         True if user confirms or no_confirm is True, False otherwise
     """
-    print("\nBelow are your caption(s):")
+    print("\nGenerated captions:")
 
     if type(captions) == str:
         print(f"- {captions}")
@@ -181,10 +183,10 @@ def confirm_captions(captions, no_confirm=False):
     print()
 
     if no_confirm:
-        print("Auto-confirming captions (--no-confirm flag used)")
+        logger.info("Auto-confirming captions (--no-confirm flag used)")
         return True
 
-    return confirm("Do these caption(s) work for you?")
+    return confirm("Do these captions work for you?")
 
 
 def ask_retry(no_confirm=False):
@@ -199,18 +201,60 @@ def ask_retry(no_confirm=False):
     return confirm("Would you like to try again with new captions?")
 
 
-def ask_tiktok_caption(no_tiktok=False):
+def ask_tiktok_caption(no_tiktok=False, upload_tiktok=False):
     """
     Ask user if they want to generate a tiktok caption.
     
     Args:
         no_tiktok (bool): Skip TikTok caption generation if True
+        upload_tiktok (bool): Auto-generate TikTok caption if upload is enabled
     """
     if no_tiktok:
         return False
-    return confirm("Would you like to generate a tiktok caption?")
+    if upload_tiktok:
+        logger.info("TikTok caption generation enabled for upload")
+        return True
+    return confirm("Would you like to generate a TikTok caption?")
+
+
+def ask_tiktok_upload(upload_tiktok=None):
+    """
+    Ask user if they want to upload images to TikTok.
+    
+    Args:
+        upload_tiktok (bool, optional): Pre-specified TikTok upload preference
+    
+    Returns:
+        bool: True if user wants to upload to TikTok, False otherwise
+    """
+    if upload_tiktok is not None:
+        if upload_tiktok:
+            logger.info("TikTok upload enabled via command line")
+        return upload_tiktok
+    
+    return confirm("Would you like to upload these images to TikTok?")
+
+
+def confirm_tiktok_upload(upload_tiktok=None):
+    """
+    Confirm TikTok upload (always as draft).
+    
+    Args:
+        upload_tiktok (bool, optional): Pre-specified TikTok upload preference
+    
+    Returns:
+        bool: True if user confirms TikTok upload
+    """
+    if upload_tiktok is not None:
+        if upload_tiktok:
+            logger.info("TikTok upload enabled via command line (draft mode)")
+        return upload_tiktok
+    
+    print("\nTikTok uploads are created as drafts in your TikTok inbox.")
+    print("You can edit and publish them manually in the TikTok app.")
+    return confirm("Upload images to TikTok as drafts?")
 
 
 def display_success(output_dir):
     """Display success message with output directory."""
-    print("\n" + gratient.green(f"Images saved to {output_dir}"))
+    logger.success(f"Images saved to {output_dir}")
